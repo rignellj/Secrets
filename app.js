@@ -4,7 +4,8 @@ const body_parser = require('body-parser');
 const mongoose = require('mongoose');
 const _ = require('lodash');
 const ejs = require('ejs');
-const encrypt = require("mongoose-encryption");
+const bcrypt = require("bcrypt");
+const salt_rounds = 10;
 const app = express();
 
 app.set('view engine', 'ejs');
@@ -18,7 +19,6 @@ user_schema = new mongoose.Schema ({
   password: String
 });
 
-user_schema.plugin(encrypt, { secret: process.env.SECRET, encryptedFields: ["password"] });
 
 const User = new mongoose.model("User", user_schema);
 
@@ -40,11 +40,13 @@ app.route("/login")
         console.log(err);
       } else {
         if (found_user){
-          if (found_user.password === password){
-            res.render("secrets");
-          } else {
-            res.send("No user found. Please, check your username and password and try again.");
-          }
+          bcrypt.compare(password, found_user.password, function(err, result){
+            if (result === true){
+              res.render("secrets");
+            } else {
+              res.send("No user found. Please, check your username and password and try again.");
+            }
+          });
         } else {
           res.send("No user found. Please, check your username and password and try again.");
         }
@@ -59,16 +61,18 @@ app.route("/register")
   res.render("register");
 })
 .post(function(req, res){
-  const new_user = new User ({
-    email: req.body.username,
-    password: req.body.password
-  });
-  new_user.save(function(err){
-    if (err){
-      console.log(err);
-    } else {
-      res.render("secrets");
-    }
+  bcrypt.hash(req.body.password, salt_rounds, function(err, hash){
+    const new_user = new User ({
+      email: req.body.username,
+      password: hash
+    });
+    new_user.save(function(err){
+      if (err){
+        console.log(err);
+      } else {
+        res.render("secrets");
+      }
+    });
   });
 });
 
